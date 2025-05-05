@@ -1,0 +1,59 @@
+stages:
+  - build
+
+variables:
+  GIT_DEPTH: 0
+  MAVEN_OPTS: '-Djava.awt.headless=true -Dmaven.repo.local=.m2/repository'
+  MAVEN_CLI_OPTS: '-P ci -show-version --batch-mode --no-transfer-progress'
+
+backend-main:
+  stage: build
+  image: eclipse-temurin:21
+  cache:
+    key:
+      files:
+        - pom.xml
+    paths:
+      - .m2/repository
+  script:
+    - ./mvnw $MAVEN_CLI_OPTS clean package -DskipTests
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - ./target
+
+backend-main-test:
+  stage: build
+  image: eclipse-temurin:21
+  cache:
+    key:
+      files:
+        - pom.xml
+    paths:
+      - .m2/repository
+    policy: pull
+  script:
+    - ./mvnw $MAVEN_CLI_OPTS verify
+
+backend-main-check-owasp:
+  stage: build
+  image: eclipse-temurin:21
+  allow_failure: true
+  script:
+    - ./mvnw $MAVEN_CLI_OPTS dependency-check:aggregate
+  cache:
+    - key:
+        files:
+          - pom.xml
+      paths:
+        - .m2/repository
+      policy: pull
+    - key: $CI_PROJECT_NAME-dependency-check
+      paths:
+        - .m2/repository/org/owasp/dependency-check-data
+  artifacts:
+    paths:
+      - target/dependency-check-report.html
+    reports:
+      dependency_scanning:
+        - target/dependency-check-gitlab.json
